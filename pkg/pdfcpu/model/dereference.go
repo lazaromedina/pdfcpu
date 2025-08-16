@@ -366,7 +366,7 @@ func (xRefTable *XRefTable) DereferenceArray(o types.Object) (types.Array, error
 	return a, nil
 }
 
-// DereferenceDict resolves and validates a dictionary object, which may be an indirect reference.
+// DereferenceDict resolves a given object to its underlying dictionary or stream dictionary, or returns an error if unsupported.
 func (xRefTable *XRefTable) DereferenceDict(o types.Object) (types.Dict, error) {
 	rawObject := o
 	o, err := xRefTable.Dereference(o)
@@ -374,12 +374,15 @@ func (xRefTable *XRefTable) DereferenceDict(o types.Object) (types.Dict, error) 
 		return nil, err
 	}
 
-	d, ok := o.(types.Dict)
-	if !ok {
-		return nil, dereferenceDictTypeError(rawObject, o)
+	if d, ok := o.(types.Dict); ok {
+		return d, nil
 	}
 
-	return d, nil
+	if sd, ok := o.(types.StreamDict); ok {
+		return sd.Dict, nil
+	}
+
+	return nil, dereferenceDictTypeError(rawObject, o)
 }
 
 func dereferenceDictTypeError(rawObject, resolvedObject types.Object) error {
