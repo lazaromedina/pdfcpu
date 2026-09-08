@@ -17,6 +17,8 @@ limitations under the License.
 package pdfcpu
 
 import (
+	"fmt"
+
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
@@ -89,8 +91,16 @@ func migrateObject(o types.Object, ctxSource, ctxDest *model.Context, migrated m
 }
 
 func migrateAnnots(o types.Object, pageIndRef types.IndirectRef, ctxSrc, ctxDest *model.Context, migrated map[int]int) (types.Object, error) {
-	arr := o.(types.Array)
-	for i, v := range o.(types.Array) {
+	if o == nil {
+		return nil, nil
+	}
+
+	arr, ok := o.(types.Array)
+	if !ok {
+		return nil, fmt.Errorf("pdfcpu: expected Annots array, got %T", o)
+	}
+
+	for i, v := range arr {
 		var d types.Dict
 		o, ok := v.(types.IndirectRef)
 		if ok {
