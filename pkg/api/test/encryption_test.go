@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
 
@@ -38,14 +37,7 @@ func listPermissions(t *testing.T, fileName string) ([]string, error) {
 	defer f.Close()
 
 	conf := model.NewDefaultConfiguration()
-	conf.Cmd = model.LISTPERMISSIONS
-
-	ctx, err := api.ReadValidateAndOptimize(f, conf)
-	if err != nil {
-		return nil, err
-	}
-
-	return pdfcpu.Permissions(ctx), nil
+	return api.PermissionsList(f, conf)
 }
 
 func confForAlgorithm(aes bool, keyLength int, upw, opw string) *model.Configuration {
@@ -176,6 +168,7 @@ func testEncryption(t *testing.T, fileName string, alg string, keyLength int) {
 	}
 }
 
+// TestEncryption verifies encryption.
 func TestEncryption(t *testing.T) {
 	for _, fileName := range []string{
 		"5116.DCT_Filter.pdf",
@@ -189,6 +182,7 @@ func TestEncryption(t *testing.T) {
 	}
 }
 
+// TestPDF20Encryption verifies pdf20 encryption.
 func TestPDF20Encryption(t *testing.T) {
 	// PDF 2.0 encryption assumes aes/256.
 	for _, fileName := range []string{
@@ -205,6 +199,7 @@ func TestPDF20Encryption(t *testing.T) {
 	}
 }
 
+// TestSetPermissions verifies set permissions.
 func TestSetPermissions(t *testing.T) {
 	msg := "TestSetPermissions"
 	inFile := filepath.Join(inDir, "5116.DCT_Filter.pdf")

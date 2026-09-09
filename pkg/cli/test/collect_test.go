@@ -23,7 +23,7 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/cli"
 )
 
-// Create a custom page sequence.
+// TestCollectCommand verifies collecting a custom page sequence.
 func TestCollectCommand(t *testing.T) {
 	msg := "TestCollectCommand"
 
@@ -32,7 +32,7 @@ func TestCollectCommand(t *testing.T) {
 
 	// Start with all odd pages but page 1, then append pages 8-11 and the last page.
 	cmd := cli.CollectCommand(inFile, outFile, []string{"odd", "!1", "8-11", "l"}, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 

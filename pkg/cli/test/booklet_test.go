@@ -44,7 +44,7 @@ func testBooklet(t *testing.T, msg string, inFiles []string, outFile string, sel
 	}
 
 	cmd := cli.BookletCommand(inFiles, outFile, selectedPages, booklet, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 
@@ -53,6 +53,7 @@ func testBooklet(t *testing.T, msg string, inFiles []string, outFile string, sel
 	}
 }
 
+// TestBookletCommand verifies booklet command.
 func TestBookletCommand(t *testing.T) {
 	for _, tt := range []struct {
 		msg           string

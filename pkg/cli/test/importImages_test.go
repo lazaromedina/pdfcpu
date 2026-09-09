@@ -22,7 +22,6 @@ import (
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/cli"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
 
@@ -34,14 +33,14 @@ func testImportImages(t *testing.T, msg string, imgFiles []string, outFile, impC
 
 	// The default import conf uses the special pos:full argument
 	// which overrides all other import conf parms.
-	imp := pdfcpu.DefaultImportConfig()
+	imp := api.DefaultImportConfig()
 	if impConf != "" {
 		if imp, err = api.Import(impConf, types.POINTS); err != nil {
 			t.Fatalf("%s %s: %v\n", msg, outFile, err)
 		}
 	}
 	cmd := cli.ImportImagesCommand(imgFiles, outFile, imp, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 	if err := validateFile(t, outFile, conf); err != nil {
@@ -49,6 +48,7 @@ func testImportImages(t *testing.T, msg string, imgFiles []string, outFile, impC
 	}
 }
 
+// TestImportCommand verifies import command.
 func TestImportCommand(t *testing.T) {
 	for _, tt := range []struct {
 		msg      string

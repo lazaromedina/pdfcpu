@@ -17,16 +17,17 @@ limitations under the License.
 package model
 
 import (
-	"embed"
 	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/pdfcpu/pdfcpu/pkg/font"
 	"github.com/pdfcpu/pdfcpu/pkg/log"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/fault"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
 
@@ -60,6 +61,17 @@ const (
 	PermissionsNone  = PermissionFlags(0xF0C3)
 	PermissionsPrint = PermissionsNone + PermissionPrintRev2 + PermissionPrintRev3
 	PermissionsAll   = PermissionFlags(0xFFFF)
+)
+
+// MergeBookmarkMode controls how merge creates or preserves bookmarks.
+type MergeBookmarkMode string
+
+const (
+	// MergeBookmarkModeWrap creates one top-level bookmark per merged file.
+	MergeBookmarkModeWrap MergeBookmarkMode = "wrap"
+
+	// MergeBookmarkModePreserve merges existing bookmark roots without per-file wrapper bookmarks.
+	MergeBookmarkModePreserve MergeBookmarkMode = "preserve"
 )
 
 const (
@@ -116,6 +128,7 @@ const (
 	REMOVEANNOTATIONS
 	ROTATE
 	NUP
+	GRID
 	BOOKLET
 	LISTBOOKMARKS
 	ADDBOOKMARKS
@@ -155,12 +168,23 @@ const (
 	SETVIEWERPREFERENCES
 	RESETVIEWERPREFERENCES
 	ZOOM
-	ADDSIGNATURE
 	LISTCERTIFICATES
 	INSPECTCERTIFICATES
 	IMPORTCERTIFICATES
 	VALIDATESIGNATURES
+	REMOVESIGNATURES
+	ADDSIGNATURE
 )
+
+// AllowRemoveEncryption enables removing encryption during validation.
+func (cmd CommandMode) AllowRemoveEncryption() bool {
+	return cmd == OPTIMIZE || cmd == REMOVESIGNATURES
+}
+
+// AllowRemoveSignatures enables removing signatures during validation.
+func (cmd CommandMode) AllowRemoveSignatures() bool {
+	return cmd == MERGEAPPEND || cmd == MERGECREATE || cmd == MERGECREATEZIP || cmd == OPTIMIZE
+}
 
 // Configuration of a Context.
 type Configuration struct {
@@ -171,17 +195,21 @@ type Configuration struct {
 
 	Version string
 
-	// Check filename extensions.
+	// Ensure .pdf input file extension.
 	CheckFileNameExt bool
 
-	// Enables PDF V1.5 compatible processing of object streams, xref streams, hybrid PDF files.
+	// Enable PDF V1.5 compatible processing of object streams, xref streams, hybrid PDF files.
 	Reader15 bool
 
-	// Enables decoding of all streams (fontfiles, images..) for logging purposes.
+	// Enable decoding of all streams (fontfiles, images..) for logging purposes.
 	DecodeAllStreams bool
 
 	// Validate against ISO-32000: strict or relaxed.
 	ValidationMode int
+
+	// UnsupportedResourcePolicy controls unsupported-resource handling during extraction.
+	// This is a runtime option and is not read from config.yml.
+	UnsupportedResourcePolicy UnsupportedResourcePolicy
 
 	// Enable validation right before writing.
 	PostProcessValidate bool
@@ -192,20 +220,16 @@ type Configuration struct {
 	// End of line char sequence for writing.
 	Eol string
 
-	// Turns on object stream generation.
+	// Turn on object stream generation.
 	// A signal for compressing any new non-stream-object into an object stream.
 	// true enforces WriteXRefStream to true.
 	// false does not prevent xRefStream generation.
 	WriteObjectStream bool
 
-	// Switches between xRefSection (<=V1.4) and objectStream/xRefStream (>=V1.5) writing.
+	// Switch between xRefSection (<=V1.4) and objectStream/xRefStream (>=V1.5) writing.
 	WriteXRefStream bool
 
-	// Turns on stats collection.
-	// TODO Decision - unused.
-	CollectStats bool
-
-	// A CSV-filename holding the statistics.
+	// CSV filename holding input file statistics.
 	StatsFileName string
 
 	// Supplied user password.
@@ -215,6 +239,9 @@ type Configuration struct {
 	// Supplied owner password.
 	OwnerPW    string
 	OwnerPWNew *string
+
+	// Supplied private key password.
+	PrivateKeyPW string
 
 	// EncryptUsingAES ensures AES encryption.
 	// true: AES encryption
@@ -255,6 +282,10 @@ type Configuration struct {
 	// Merge creates bookmarks.
 	CreateBookmarks bool
 
+	// MergeBookmarkMode controls how merge creates or preserves bookmarks.
+	// This is a runtime option and is not read from config.yml.
+	MergeBookmarkMode MergeBookmarkMode
+
 	// PDF Viewer is expected to supply appearance streams for form fields.
 	NeedAppearances bool
 
@@ -270,12 +301,74 @@ type Configuration struct {
 	// Http timeout in seconds for OCSP revocation checking.
 	TimeoutOCSP int
 
+	// AllowedRevocationHosts contains private hosts explicitly trusted for CRL and OCSP requests.
+	AllowedRevocationHosts []string
+
 	// Preferred certificate revocation checking mechanism: CRL, OSCP
 	PreferredCertRevocationChecker int
 
 	// Limit form field content for display purposes when using pdfcpu form list.
 	// If > 0 affects the columns AltName, Default and Value.
 	FormFieldListMaxColWidth int
+
+	// Limits controls resource usage for input-driven allocation.
+	Limits ResourceLimits
+
+	// Do not encrypt output files.
+	RemoveEncryption bool
+
+	// Remove existing signatures.
+	RemoveSignatures bool
+}
+
+// ResourceLimits controls resource usage for input-driven allocation.
+type ResourceLimits struct {
+	// MaxStreamBytes limits encoded stream bytes read from a PDF.
+	MaxStreamBytes int64
+
+	// MaxDecodeBytes limits decoded stream bytes produced by filters.
+	MaxDecodeBytes int64
+
+	// MaxImagePixels limits decoded/rendered image dimensions.
+	MaxImagePixels int64
+
+	// MaxImageBytes limits decoded/rendered image buffer sizes.
+	MaxImageBytes int64
+
+	// MaxObjectCount limits xref stream /Size expansion.
+	MaxObjectCount int
+
+	// MaxObjectStreamCount limits object stream /N.
+	MaxObjectStreamCount int
+
+	// MaxObjectStreamFirst limits object stream /First prolog bytes.
+	MaxObjectStreamFirst int64
+
+	// MaxXRefEntries limits xref stream Index expansion.
+	MaxXRefEntries int
+
+	// MaxRecursionDepth limits recursive parsing and object graph traversal.
+	MaxRecursionDepth int
+}
+
+// DefaultResourceLimits returns the default resource limits.
+func DefaultResourceLimits() ResourceLimits {
+	const (
+		MB = 1 << 20
+		MP = 1 << 20
+	)
+
+	return ResourceLimits{
+		MaxStreamBytes:       512 * MB,
+		MaxDecodeBytes:       512 * MB,
+		MaxImagePixels:       100 * MP,
+		MaxImageBytes:        512 * MB,
+		MaxObjectCount:       10_000_000,
+		MaxObjectStreamCount: 1_000_000,
+		MaxObjectStreamFirst: 16 * MB,
+		MaxXRefEntries:       10_000_000,
+		MaxRecursionDepth:    100,
+	}
 }
 
 // ConfigPath defines the location of pdfcpu's configuration directory.
@@ -296,9 +389,6 @@ var configFileBytes []byte
 
 //go:embed resources/Roboto-Regular.ttf
 var robotoFontFileBytes []byte
-
-//go:embed resources/certs/*.p7c
-var certFilesEU embed.FS
 
 func ensureConfigFileAt(path string, override bool) error {
 	f, err := os.Open(path)
@@ -321,7 +411,7 @@ version: %s
 			VersionStr)
 
 		bb := append([]byte(s), configFileBytes...)
-		if err := os.WriteFile(path, bb, os.ModePerm); err != nil {
+		if err := os.WriteFile(path, bb, 0600); err != nil {
 			return err
 		}
 		f, err = os.Open(path)
@@ -350,14 +440,13 @@ func ensureFontDirInitialized() error {
 	if err != nil {
 		return err
 	}
-
 	if onlyHidden(files) {
 		// Ensure Roboto font for form filling.
 		fontname := "Roboto-Regular"
-		if log.CLIEnabled() {
-			log.CLI.Printf("installing user font:")
+		if log.DebugEnabled() && log.CLIEnabled() {
+			log.CLI.Printf("installing user font: %s\n", fontname)
 		}
-		if err := font.InstallFontFromBytes(font.UserFontDir, fontname, robotoFontFileBytes); err != nil {
+		if err := font.InstallFontFromBytesQuiet(font.UserFontDir, fontname, robotoFontFileBytes); err != nil {
 			return err
 		}
 	}
@@ -366,60 +455,26 @@ func ensureFontDirInitialized() error {
 }
 
 func initCertificates() error {
-	// Install certs managed by The European Union Trusted Lists (EUTL) (https://eidas.ec.europa.eu/efda/trust-services/browse/eidas/tls).
-	// The embedded files are unpacked and stored into the pdfcpu config dir.
-	// Additional certificates may be loaded using the corresponding CLI command: pdfcpu certificates import
-	// Certificates are loaded into memory lazily.
-
-	files, err := os.ReadDir(CertDir)
+	files, err := os.ReadDir(TrustedCertDir)
 	if err != nil {
 		return err
 	}
 	if !onlyHidden(files) {
 		return nil
 	}
-
-	files, err = certFilesEU.ReadDir("resources/certs")
-	if err != nil {
-		return err
+	if !bundledDefaultCertificates {
+		return nil
 	}
 
-	euDir := filepath.Join(CertDir, "eu")
-	if err := os.MkdirAll(euDir, os.ModePerm); err != nil {
-		return err
-	}
-
-	for _, file := range files {
-		//fmt.Println("Embedded file:", file.Name())
-
-		content, err := certFilesEU.ReadFile("resources/certs/" + file.Name())
-		if err != nil {
-			return err
-		}
-
-		path := filepath.Join(euDir, file.Name())
-		//fmt.Printf("writing to %s\n", path)
-
-		destFile, err := os.Create(path)
-		if err != nil {
-			return err
-		}
-		defer destFile.Close()
-
-		_, err = destFile.Write(content)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	MarkCertificateStoreChanged()
+	return installDefaultCertificates()
 }
 
 // EnsureDefaultConfigAt tries to load the default configuration from path.
 // If path/pdfcpu/config.yaml is not found, it will be created.
 func EnsureDefaultConfigAt(path string, override bool) error {
 	configDir := filepath.Join(path, "pdfcpu")
-	if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return err
 	}
 	if err := ensureConfigFileAt(filepath.Join(configDir, "config.yml"), override); err != nil {
@@ -430,7 +485,7 @@ func EnsureDefaultConfigAt(path string, override bool) error {
 	// Other userfonts have to be installed via `pdfcpu font install` or copied over from another pdfcpu config dir.
 	// Userfonts are loaded into memory lazily.
 	font.UserFontDir = filepath.Join(configDir, "fonts")
-	if err := os.MkdirAll(font.UserFontDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(font.UserFontDir, 0755); err != nil {
 		return err
 	}
 	if err := ensureFontDirInitialized(); err != nil {
@@ -439,8 +494,8 @@ func EnsureDefaultConfigAt(path string, override bool) error {
 
 	// Initialize pdfcpu config/cert dir, then extract and install certificates.
 	// Certificates are loaded into memory lazily.
-	CertDir = filepath.Join(configDir, "certs")
-	if err := os.MkdirAll(CertDir, os.ModePerm); err != nil {
+	TrustedCertDir = filepath.Join(configDir, "certs")
+	if err := os.MkdirAll(TrustedCertDir, 0755); err != nil {
 		return err
 	}
 	if err := initCertificates(); err != nil {
@@ -465,6 +520,7 @@ func newDefaultConfiguration() *Configuration {
 		Reader15:                        true,
 		DecodeAllStreams:                false,
 		ValidationMode:                  ValidationRelaxed,
+		UnsupportedResourcePolicy:       UnsupportedResourceSkip,
 		ValidateLinks:                   false,
 		Eol:                             types.EolLF,
 		WriteObjectStream:               true,
@@ -479,14 +535,19 @@ func newDefaultConfiguration() *Configuration {
 		OptimizeResourceDicts:           true,
 		OptimizeDuplicateContentStreams: false,
 		CreateBookmarks:                 true,
+		MergeBookmarkMode:               MergeBookmarkModeWrap,
 		NeedAppearances:                 false,
 		Offline:                         false,
 		Timeout:                         5,
+		TimeoutCRL:                      10,
+		TimeoutOCSP:                     10,
 		PreferredCertRevocationChecker:  CRL,
 		FormFieldListMaxColWidth:        0,
+		Limits:                          DefaultResourceLimits(),
 	}
 }
 
+// ResetConfig resets the default configuration.
 func ResetConfig() error {
 	path, err := os.UserConfigDir()
 	if err != nil {
@@ -499,6 +560,7 @@ func ResetConfig() error {
 func NewDefaultConfiguration() *Configuration {
 	if loadedDefaultConfig != nil {
 		c := *loadedDefaultConfig
+		c.AllowedRevocationHosts = slices.Clone(loadedDefaultConfig.AllowedRevocationHosts)
 		return &c
 	}
 	if ConfigPath != "disable" {
@@ -508,10 +570,10 @@ func NewDefaultConfiguration() *Configuration {
 		}
 		if err = EnsureDefaultConfigAt(path, false); err == nil {
 			c := *loadedDefaultConfig
+			c.AllowedRevocationHosts = slices.Clone(loadedDefaultConfig.AllowedRevocationHosts)
 			return &c
 		}
-		fmt.Fprintf(os.Stderr, "pdfcpu: config problem: %v\n", err)
-		os.Exit(1)
+		fault.Fail("config problem: %w", err)
 	}
 	// Bypass config.yml
 	return newDefaultConfiguration()

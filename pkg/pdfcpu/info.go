@@ -134,6 +134,10 @@ func ensureInfoDict(ctx *model.Context) error {
 
 		ctx.Info = ir
 
+		if ctx.Write.Increment {
+			ctx.Write.IncrementWithObjNr((*ctx.Info).ObjectNumber.Value())
+		}
+
 		return nil
 	}
 
@@ -149,6 +153,10 @@ func ensureInfoDict(ctx *model.Context) error {
 	d.Update("CreationDate", types.StringLiteral(now))
 	d.Update("ModDate", types.StringLiteral(now))
 	d.Update("Producer", types.StringLiteral(v))
+
+	if ctx.Write.Increment {
+		ctx.Write.IncrementWithObjNr((*ctx.Info).ObjectNumber.Value())
+	}
 
 	return nil
 }
@@ -540,6 +548,13 @@ func setupFontInfos(ctx *model.Context, fontInfos *[]model.FontInfo) {
 
 // Info returns info about ctx.
 func Info(ctx *model.Context, fileName string, selectedPages types.IntSet, fonts bool) (*PDFInfo, error) {
+	if ctx == nil {
+		return nil, ErrMissingPDFContext
+	}
+	if ctx.XRefTable == nil {
+		return nil, ErrMissingXRefTable
+	}
+
 	info := &PDFInfo{FileName: fileName, Unit: ctx.Unit, UnitString: ctx.UnitString()}
 
 	v := ctx.HeaderVersion
@@ -553,14 +568,14 @@ func Info(ctx *model.Context, fileName string, selectedPages types.IntSet, fonts
 	// PageBoundaries for selected pages.
 	pbs, err := ctx.PageBoundaries(selectedPages)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("page boundaries: %w", err)
 	}
 	info.PageBoundaries = pbs
 
 	// Media box dimensions for all pages.
 	pd, err := ctx.PageDims()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("page dimensions: %w", err)
 	}
 	m := map[types.Dim]bool{}
 	for _, d := range pd {
@@ -590,7 +605,7 @@ func Info(ctx *model.Context, fileName string, selectedPages types.IntSet, fonts
 
 	kwl, err := KeywordsList(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("keywords: %w", err)
 	}
 	info.Keywords = kwl
 
@@ -616,7 +631,7 @@ func Info(ctx *model.Context, fileName string, selectedPages types.IntSet, fonts
 
 	aa, err := ctx.ListAttachments()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("attachments: %w", err)
 	}
 	info.Attachments = aa
 
@@ -633,6 +648,10 @@ func Info(ctx *model.Context, fileName string, selectedPages types.IntSet, fonts
 
 // ListInfo returns formatted info about ctx.
 func ListInfo(info *PDFInfo, selectedPages types.IntSet, fonts bool) ([]string, error) {
+	if info == nil {
+		return nil, ErrMissingPDFInfo
+	}
+
 	var separator = draw.HorSepLine([]int{44})
 
 	var ss []string

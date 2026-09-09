@@ -1,6 +1,9 @@
 on: [push, pull_request]
 name: Test
 
+permissions:
+  contents: read
+
 jobs:
   # Run tests on native platforms
   test:
@@ -9,26 +12,26 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            go: '1.24.x'
+            go: '1.25.x'
           - os: ubuntu-latest
-            go: '1.25.x'
-          - os: macos-latest
-            go: '1.24.x'
+            go: '1.26.x'
           - os: macos-latest
             go: '1.25.x'
-          - os: windows-latest
-            go: '1.24.x'
+          - os: macos-latest
+            go: '1.26.x'
           - os: windows-latest
             go: '1.25.x'
+          - os: windows-latest
+            go: '1.26.x'
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Go ${{ matrix.go }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
 
@@ -77,17 +80,17 @@ jobs:
           - goos: linux
             goarch: arm64
         go:
-          - '1.24.x'
           - '1.25.x'
+          - '1.26.x'
 
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Go ${{ matrix.go }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
 

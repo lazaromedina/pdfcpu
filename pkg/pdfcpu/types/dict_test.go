@@ -16,10 +16,9 @@ limitations under the License.
 
 package types
 
-import (
-	"testing"
-)
+import "testing"
 
+// TestEncodeDict verifies encode dict.
 func TestEncodeDict(t *testing.T) {
 	dict := Dict{
 		"A()": Integer(1),
@@ -27,6 +26,27 @@ func TestEncodeDict(t *testing.T) {
 	expected := `<</A#28#29 1>>`
 	s := dict.PDFString()
 	if s != expected {
-		t.Errorf("expected %s for %+v, got %s", expected, dict, s)
+		t.Errorf("expected %s for %v, got %s", expected, dict, s)
+	}
+}
+
+func TestDictHasEntry(t *testing.T) {
+	dict := Dict{
+		"A":       Integer(1),
+		"B":       nil,
+		"C#28#29": Name("encoded"),
+	}
+
+	if !dict.HasEntry("A") {
+		t.Fatal("expected entry A")
+	}
+	if dict.HasEntry("B") {
+		t.Fatal("expected nil entry B to be absent")
+	}
+	if dict.HasEntry("D") {
+		t.Fatal("expected missing entry D to be absent")
+	}
+	if !dict.HasEntry("C()") {
+		t.Fatal("expected decoded entry C()")
 	}
 }

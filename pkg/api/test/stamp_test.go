@@ -52,6 +52,7 @@ func testAddWatermarks(t *testing.T, msg, inFile, outFile string, selectedPages 
 	}
 }
 
+// TestAddWatermarks verifies add watermarks.
 func TestAddWatermarks(t *testing.T) {
 	for _, tt := range []struct {
 		msg             string
@@ -307,8 +308,8 @@ func TestAddWatermarks(t *testing.T) {
 			"text",
 			"Set top/bottom and left/right margins:\n" +
 				"(needs \"bgcol\")\n" +
-				"\"ma: 5 10, fillc:#3277d3, bgcol:#beded9, rot:0\"",
-			"ma: 5 10, fillc:#3277d3, bgcol:#beded9, rot:0"},
+				"\"marg: 5 10, fillc:#3277d3, bgcol:#beded9, rot:0\"",
+			"marg: 5 10, fillc:#3277d3, bgcol:#beded9, rot:0"},
 
 		{"TestWatermarkText",
 			"Walden.pdf",
@@ -317,8 +318,8 @@ func TestAddWatermarks(t *testing.T) {
 			"text",
 			"Set top, left/right and  bottom margins:\n" +
 				"(needs \"bgcol\")\n" +
-				"\"ma: 5 10 15, fillc:#3277d3, bgcol:#beded9, rot:0\"",
-			"ma: 5 10 15, fillc:#3277d3, bgcol:#beded9, rot:0"},
+				"\"marg: 5 10 15, fillc:#3277d3, bgcol:#beded9, rot:0\"",
+			"marg: 5 10 15, fillc:#3277d3, bgcol:#beded9, rot:0"},
 
 		{"TestWatermarkText",
 			"Walden.pdf",
@@ -327,8 +328,8 @@ func TestAddWatermarks(t *testing.T) {
 			"text",
 			"Set all margins individually:\n" +
 				"(needs \"bgcol\")\n" +
-				"\"ma: 5 10 15 20, fillc:#3277d3, bgcol:#beded9, rot:0\"",
-			"ma: 5 10 15 20, fillc:#3277d3, bgcol:#beded9, rot:0"},
+				"\"marg: 5 10 15 20, fillc:#3277d3, bgcol:#beded9, rot:0\"",
+			"marg: 5 10 15 20, fillc:#3277d3, bgcol:#beded9, rot:0"},
 
 		{"TestWatermarkText",
 			"Walden.pdf",
@@ -370,8 +371,8 @@ func TestAddWatermarks(t *testing.T) {
 			"text",
 			"Set margins and colored border:\n" +
 				"(needs \"bgcol\")\n" +
-				"\"ma: 10, bo: 5 .3 .7 .7, fillc:#3277d3, bgcol:#beded9, rot:0\"",
-			"ma: 10, bo: 5 .3 .7 .7, fillc:#3277d3, bgcol:#beded9, rot:0"},
+				"\"marg: 10, bo: 5 .3 .7 .7, fillc:#3277d3, bgcol:#beded9, rot:0\"",
+			"marg: 10, bo: 5 .3 .7 .7, fillc:#3277d3, bgcol:#beded9, rot:0"},
 
 		{"TestWatermarkText",
 			"Walden.pdf",
@@ -381,8 +382,8 @@ func TestAddWatermarks(t *testing.T) {
 			"Set margins and round colored border:\n" +
 				"(needs \"bgcol\")\n" +
 				"round corner effect depends on border width\n" +
-				"\"ma: 5, bo: 7 round .3 .7 .7, fillc:#3277d3, bgcol:#beded9, rot:0\"",
-			"ma: 5, bo: 7 round .3 .7 .7, fillc:#3277d3, bgcol:#beded9, rot:0"},
+				"\"marg: 5, bo: 7 round .3 .7 .7, fillc:#3277d3, bgcol:#beded9, rot:0\"",
+			"marg: 5, bo: 7 round .3 .7 .7, fillc:#3277d3, bgcol:#beded9, rot:0"},
 
 		// Add image watermark to inFile starting at page 1 using no rotation.
 		{"TestWatermarkImage",
@@ -468,6 +469,7 @@ func TestAddWatermarks(t *testing.T) {
 	}
 }
 
+// TestAddStampWithLink verifies add stamp with link.
 func TestAddStampWithLink(t *testing.T) {
 	for _, tt := range []struct {
 		msg             string
@@ -499,6 +501,7 @@ func TestAddStampWithLink(t *testing.T) {
 
 }
 
+// TestCropBox verifies crop box.
 func TestCropBox(t *testing.T) {
 	msg := "TestCropBox"
 	inFile := filepath.Join(inDir, "empty.pdf")
@@ -540,6 +543,7 @@ func hasWatermarks(inFile string, t *testing.T) bool {
 	return ok
 }
 
+// TestStampingLifecycle verifies stamping lifecycle.
 func TestStampingLifecycle(t *testing.T) {
 	msg := "TestStampingLifecycle"
 	inFile := filepath.Join(inDir, "Acroforms2.pdf")
@@ -612,6 +616,7 @@ func TestStampingLifecycle(t *testing.T) {
 	}
 }
 
+// TestRecycleWM verifies recycle wm.
 func TestRecycleWM(t *testing.T) {
 	msg := "TestRecycleWM"
 	inFile := filepath.Join(inDir, "test.pdf")

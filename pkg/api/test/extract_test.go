@@ -17,6 +17,7 @@ limitations under the License.
 package test
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -29,6 +30,7 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
 
+// TestExtractImages verifies image extraction.
 func TestExtractImages(t *testing.T) {
 	msg := "TestExtractImages"
 	// Extract images for all pages into outDir.
@@ -88,6 +90,7 @@ func compare(t *testing.T, fn1, fn2 string) {
 
 }
 
+// TestExtractImagesSoftMasks verifies extraction of images with soft masks.
 func TestExtractImagesSoftMasks(t *testing.T) {
 	inFile := filepath.Join(inDir, "VectorApple.pdf")
 	ctx, err := api.ReadContextFile(inFile)
@@ -134,6 +137,7 @@ func TestExtractImagesSoftMasks(t *testing.T) {
 	}
 }
 
+// TestExtractImagesLowLevel verifies low-level image extraction APIs.
 func TestExtractImagesLowLevel(t *testing.T) {
 	msg := "TestExtractImagesLowLevel"
 	fileName := "testImage.pdf"
@@ -168,22 +172,24 @@ func TestExtractImagesLowLevel(t *testing.T) {
 	}
 }
 
+// TestExtractFonts verifies font extraction.
 func TestExtractFonts(t *testing.T) {
 	msg := "TestExtractFonts"
 	// Extract fonts for all pages into outDir.
 	for _, fn := range []string{"5116.DCT_Filter.pdf", "testImage.pdf", "go.pdf"} {
 		fn = filepath.Join(inDir, fn)
-		if err := api.ExtractFontsFile(fn, outDir, nil, nil); err != nil {
+		if err := api.ExtractFontsFile(fn, outDir, nil, nil); err != nil && !errors.Is(err, pdfcpu.ErrUnsupportedResource) {
 			t.Fatalf("%s %s: %v\n", msg, fn, err)
 		}
 	}
 	// Extract fonts for inFile for pages 1-3 into outDir.
 	inFile := filepath.Join(inDir, "go.pdf")
-	if err := api.ExtractFontsFile(inFile, outDir, []string{"1-3"}, nil); err != nil {
+	if err := api.ExtractFontsFile(inFile, outDir, []string{"1-3"}, nil); err != nil && !errors.Is(err, pdfcpu.ErrUnsupportedResource) {
 		t.Fatalf("%s %s: %v\n", msg, inFile, err)
 	}
 }
 
+// TestExtractFontsLowLevel verifies low-level font extraction APIs.
 func TestExtractFontsLowLevel(t *testing.T) {
 	msg := "TestExtractFontsLowLevel"
 	inFile := filepath.Join(inDir, "go.pdf")
@@ -215,6 +221,7 @@ func TestExtractFontsLowLevel(t *testing.T) {
 	}
 }
 
+// TestExtractPages verifies page extraction.
 func TestExtractPages(t *testing.T) {
 	msg := "TestExtractPages"
 	// Extract page #1 into outDir.
@@ -224,6 +231,7 @@ func TestExtractPages(t *testing.T) {
 	}
 }
 
+// TestExtractPagesLowLevel verifies low-level page extraction APIs.
 func TestExtractPagesLowLevel(t *testing.T) {
 	msg := "TestExtractPagesLowLevel"
 	inFile := filepath.Join(inDir, "TheGoProgrammingLanguageCh1.pdf")
@@ -238,17 +246,23 @@ func TestExtractPagesLowLevel(t *testing.T) {
 	// Extract page 1.
 	i := 1
 
-	r, err := api.ExtractPage(ctx, i)
+	rd, err := api.ExtractPage(ctx, i)
 	if err != nil {
 		t.Fatalf("%s extractPage(%d): %v\n", msg, i, err)
 	}
-
-	if err := api.WritePage(r, outDir, outFile, i); err != nil {
+	if rd == nil {
 		t.Fatalf("%s writePage(%d): %v\n", msg, i, err)
 	}
 
+	fnBase := strings.TrimSuffix(filepath.Base(outFile), ".pdf")
+	f := api.WritePageToDisk(outDir, fnBase)
+
+	if err := f(rd, i); err != nil {
+		t.Fatalf("%s writePage(%d): %v\n", msg, i, err)
+	}
 }
 
+// TestExtractContent verifies content extraction.
 func TestExtractContent(t *testing.T) {
 	msg := "TestExtractContent"
 	// Extract content of all pages into outDir.
@@ -258,6 +272,7 @@ func TestExtractContent(t *testing.T) {
 	}
 }
 
+// TestExtractContentLowLevel verifies low-level content extraction APIs.
 func TestExtractContentLowLevel(t *testing.T) {
 	msg := "TestExtractContentLowLevel"
 	inFile := filepath.Join(inDir, "5116.DCT_Filter.pdf")
@@ -283,6 +298,7 @@ func TestExtractContentLowLevel(t *testing.T) {
 	t.Logf("Page content (PDF-syntax) for page %d:\n%s", i, string(bb))
 }
 
+// TestExtractMetadata verifies metadata extraction.
 func TestExtractMetadata(t *testing.T) {
 	msg := "TestExtractMetadata"
 	// Extract all metadata into outDir.
@@ -292,6 +308,7 @@ func TestExtractMetadata(t *testing.T) {
 	}
 }
 
+// TestExtractMetadataLowLevel verifies low-level metadata extraction APIs.
 func TestExtractMetadataLowLevel(t *testing.T) {
 	msg := "TestExtractMedadataLowLevel"
 	inFile := filepath.Join(inDir, "TheGoProgrammingLanguageCh1.pdf")

@@ -36,11 +36,12 @@ func testCut(t *testing.T, msg, inFile, outFile string, unit types.DisplayUnit, 
 	inFile = filepath.Join(inDir, inFile)
 
 	cmd := cli.CutCommand(inFile, outDir, outFile, nil, cut, nil)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 }
 
+// TestCut verifies cut.
 func TestCut(t *testing.T) {
 	for _, tt := range []struct {
 		msg             string
@@ -99,11 +100,12 @@ func testNDown(t *testing.T, msg, inFile, outFile string, n int, unit types.Disp
 	inFile = filepath.Join(inDir, inFile)
 
 	cmd := cli.NDownCommand(inFile, outDir, outFile, nil, n, cut, nil)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 }
 
+// TestNDown verifies n down.
 func TestNDown(t *testing.T) {
 	for _, tt := range []struct {
 		msg     string
@@ -156,11 +158,12 @@ func testPoster(t *testing.T, msg, inFile, outFile string, unit types.DisplayUni
 	inFile = filepath.Join(inDir, inFile)
 
 	cmd := cli.PosterCommand(inFile, outDir, outFile, nil, cut, nil)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 }
 
+// TestPoster verifies poster.
 func TestPoster(t *testing.T) {
 	for _, tt := range []struct {
 		msg     string

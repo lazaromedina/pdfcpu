@@ -5,7 +5,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - '-s -w -X main.version={{.Version}} -X github.com/pdfcpu/pdfcpu/pkg/pdfcpu.VersionStr={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} -X main.builtBy=goreleaser'
+      - '-s -w -X github.com/pdfcpu/pdfcpu/cmd/pdfcpu.version={{.Version}} -X github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model.VersionStr={{.Version}} -X github.com/pdfcpu/pdfcpu/cmd/pdfcpu.commit={{.ShortCommit}} -X github.com/pdfcpu/pdfcpu/cmd/pdfcpu.date={{.Date}}'
     goos:
       - linux
       - darwin
@@ -29,14 +29,16 @@ builds:
 dist: ./dist
 
 archives:
-  - format: tar.xz
+  - formats:
+      - tar.xz
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
     name_template: >-
       {{- .ProjectName }}_
       {{- .Version }}_
-      {{- title .Os }}_
+      {{- .Os | title }}_
       {{- if eq .Arch "linux" }}Linux
       {{- else if eq .Arch "windows" }}Windows
       {{- else if eq .Arch "386" }}i386
@@ -49,16 +51,14 @@ checksum:
 snapshot:
   name_template: "{{ .Tag }}-next"
 changelog:
-  sort: asc
+  sort: desc
   filters:
     exclude:
       - '^docs:'
       - '^test:'
 
 release:
-  github:
-    owner: pdfcpu
-    name: pdfcpu
-  draft: false  # Optional: Set to true if you want to create drafts and not publish immediately
+  draft: true  # Optional: Set to true if you want to create drafts and not publish immediately
+  replace_existing_draft: true
+  replace_existing_artifacts: true 
   prerelease: false  # Optional: Set to true if it's a prerelease
-

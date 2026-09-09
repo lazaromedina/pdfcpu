@@ -16,6 +16,7 @@ limitations under the License.
 package test
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -53,6 +54,7 @@ func userFonts(dir string) ([]string, error) {
 	return ff, nil
 }
 
+// TestMain verifies main.
 func TestMain(m *testing.M) {
 	inDir = filepath.Join("..", "..", "testdata")
 	fontDir = filepath.Join(inDir, "fonts")
@@ -135,10 +137,11 @@ func allPDFs(t *testing.T, dir string) []string {
 
 func validateFile(t *testing.T, fileName string, conf *model.Configuration) error {
 	t.Helper()
-	_, err := cli.Process(cli.ValidateCommand([]string{fileName}, conf))
+	_, err := cli.Dispatch(cli.ValidateCommand([]string{fileName}, conf))
 	return err
 }
 
+// TestValidate verifies validate.
 func TestValidate(t *testing.T) {
 	msg := "TestValidateCommand"
 	for _, f := range allPDFs(t, inDir) {
@@ -149,16 +152,90 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+// TestValidateBatchWithStdinReturnsErrors verifies multi input validation failure reporting.
+func TestValidateBatchWithStdinReturnsErrors(t *testing.T) {
+	stdin := os.Stdin
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdin = r
+	defer func() {
+		os.Stdin = stdin
+		r.Close()
+	}()
+
+	if _, err = w.WriteString("not a pdf"); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+
+	missingFile := filepath.Join(outDir, "missing.pdf")
+	_, err = cli.Dispatch(cli.ValidateCommand([]string{"-", missingFile}, conf))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	for _, want := range []string{"-", missingFile} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("expected %q in error, got %q", want, err.Error())
+		}
+	}
+}
+
+// TestMultiInputListCommandsReturnErrors verifies batch list failures are not hidden.
+func TestMultiInputListCommandsReturnErrors(t *testing.T) {
+	validFile := filepath.Join(inDir, "Acroforms2.pdf")
+	missingFile := filepath.Join(outDir, "missing.pdf")
+	tests := []struct {
+		name string
+		cmd  *cli.Command
+	}{
+		{
+			name: "info",
+			cmd:  cli.InfoCommand([]string{validFile, missingFile}, nil, false, false, conf),
+		},
+		{
+			name: "permissions",
+			cmd:  cli.ListPermissionsCommand([]string{validFile, missingFile}, conf),
+		},
+		{
+			name: "form fields",
+			cmd:  cli.ListFormFieldsCommand([]string{validFile, missingFile}, conf),
+		},
+		{
+			name: "images",
+			cmd:  cli.ListImagesCommand([]string{validFile, missingFile}, nil, conf),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := cli.Dispatch(tt.cmd)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("expected not exist error, got %v", err)
+			}
+			if !strings.Contains(err.Error(), missingFile) {
+				t.Fatalf("expected %q in error, got %q", missingFile, err.Error())
+			}
+		})
+	}
+}
+
+// TestInfoCommand verifies info command.
 func TestInfoCommand(t *testing.T) {
 	msg := "TestInfoCommand"
 	inFile := filepath.Join(inDir, "5116.DCT_Filter.pdf")
 
 	cmd := cli.InfoCommand([]string{inFile}, nil, true, true, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 }
 
+// TestUnknownCommand verifies unknown command.
 func TestUnknownCommand(t *testing.T) {
 	msg := "TestUnknownCommand"
 	inFile := filepath.Join(outDir, "go.pdf")
@@ -168,12 +245,40 @@ func TestUnknownCommand(t *testing.T) {
 		InFile: &inFile,
 		Conf:   conf}
 
-	if _, err := cli.Process(cmd); err == nil {
+	if _, err := cli.Dispatch(cmd); err == nil {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 }
 
-// Enable this test for debugging of a specific file.
+// TestDispatchRejectsNilCommand verifies nil commands fail before dispatch.
+func TestDispatchRejectsNilCommand(t *testing.T) {
+	if _, err := cli.Dispatch(nil); err == nil {
+		t.Fatal("expected missing command error")
+	}
+}
+
+// TestDispatchDefaultsNilConfig verifies manual commands get the same default config handling as command constructors.
+func TestDispatchDefaultsNilConfig(t *testing.T) {
+	msg := "TestDispatchDefaultsNilConfig"
+	inFile := filepath.Join(outDir, "go.pdf")
+
+	cmd := &cli.Command{
+		Mode:   99,
+		InFile: &inFile,
+	}
+
+	if _, err := cli.Dispatch(cmd); err == nil {
+		t.Fatalf("%s: expected unknown command error\n", msg)
+	}
+	if cmd.Conf == nil {
+		t.Fatalf("%s: expected default configuration\n", msg)
+	}
+	if cmd.Conf.Cmd != cmd.Mode {
+		t.Fatalf("%s: Cmd = %d, want %d\n", msg, cmd.Conf.Cmd, cmd.Mode)
+	}
+}
+
+// XTestSomeCommand this test for debugging of a specific file.
 func XTestSomeCommand(t *testing.T) {
 	msg := "TestSomeCommand"
 
@@ -189,7 +294,7 @@ func XTestSomeCommand(t *testing.T) {
 
 	cmd := cli.ValidateCommand([]string{inFile}, conf)
 
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, inFile, err)
 	}
 }

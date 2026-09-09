@@ -343,6 +343,7 @@ var bookletTestCases = []pageOrderResults{
 	},
 }
 
+// TestBookletPageOrder verifies booklet page order.
 func TestBookletPageOrder(t *testing.T) {
 	for _, test := range bookletTestCases {
 		t.Run(test.id, func(tt *testing.T) {
@@ -359,7 +360,7 @@ func TestBookletPageOrder(t *testing.T) {
 				pageNumbers[i+1] = true
 			}
 			pageOrder := make([]int, len(test.expectedPageOrder))
-			out := GetBookletOrdering(pageNumbers, nup)
+			out := getBookletOrdering(pageNumbers, nup)
 			if len(test.expectedPageOrder) != len(out) {
 				tt.Fatalf("page order output has the wrong length, expected %d but got %d", len(test.expectedPageOrder), len(out))
 			}

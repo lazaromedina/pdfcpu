@@ -43,7 +43,7 @@ func createPDF(t *testing.T, msg, inFile, inFileJSON, outFile string, conf *mode
 	}
 
 	cmd := cli.CreateCommand(inFile, inFileJSON, outFile, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 
@@ -53,6 +53,7 @@ func createPDF(t *testing.T, msg, inFile, inFileJSON, outFile string, conf *mode
 
 }
 
+// TestCreateSinglePageDemoFormsViaJson verifies create single page demo forms via json.
 func TestCreateSinglePageDemoFormsViaJson(t *testing.T) {
 
 	// Render single page demo forms for export, reset, lock, unlock and fill tests.

@@ -17,6 +17,8 @@ limitations under the License.
 package filter_test
 
 import (
+	"bytes"
+	"compress/zlib"
 	"errors"
 	"io"
 	"os"
@@ -26,6 +28,21 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/filter"
 )
 
+func zlibEncoded(t *testing.T, s string) *bytes.Buffer {
+	t.Helper()
+
+	var b bytes.Buffer
+	w := zlib.NewWriter(&b)
+	if _, err := w.Write([]byte(s)); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return &b
+}
+
+// TestFilterSupport verifies filter support detection.
 func TestFilterSupport(t *testing.T) {
 	var filtersTests = []struct {
 		filterName string
@@ -40,7 +57,7 @@ func TestFilterSupport(t *testing.T) {
 		{filter.DCT, nil},
 		{filter.JBIG2, filter.ErrUnsupportedFilter},
 		{filter.JPX, filter.ErrUnsupportedFilter},
-		{"INVALID_FILTER", errors.New("Invalid filter: <INVALID_FILTER>")},
+		{"INVALID_FILTER", errors.New("invalid filter: <INVALID_FILTER>")},
 	}
 	for _, tt := range filtersTests {
 		_, err := filter.NewFilter(tt.filterName, nil)
@@ -97,6 +114,7 @@ func encodeDecodeString(t *testing.T, filterName string) {
 	}
 }
 
+// TestEncodeDecodeString verifies string encode/decode round trips.
 func TestEncodeDecodeString(t *testing.T) {
 	for _, f := range filter.List() {
 		encodeDecodeString(t, f)
@@ -172,6 +190,7 @@ func encodeDecode(t *testing.T, fileName, filterName string) {
 
 }
 
+// TestEncodeDecode verifies encode/decode round trips.
 func TestEncodeDecode(t *testing.T) {
 	for _, filterName := range filter.List() {
 		for _, filename := range filenames {
@@ -266,6 +285,7 @@ func encodeDecodeFilterPipeline(t *testing.T, fileName string, fpl []string) {
 	}
 }
 
+// TestEncodeDecodeFilterPipeline verifies filter pipeline encode/decode round trips.
 func TestEncodeDecodeFilterPipeline(t *testing.T) {
 	for _, filename := range filenames {
 		encodeDecodeFilterPipeline(t, filename, []string{filter.ASCII85, filter.Flate})
@@ -325,5 +345,44 @@ func TestASCII85DecodeWithCRLF(t *testing.T) {
 				t.Errorf("Mismatch: got %q, want %q", string(result), tc.expected)
 			}
 		})
+	}
+}
+
+// TestDecodeLimitExceeded verifies decode limits are enforced.
+func TestDecodeLimitExceeded(t *testing.T) {
+	f, err := filter.NewFilter(filter.Flate, nil, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f.Decode(zlibEncoded(t, "hello"))
+	if !errors.Is(err, filter.ErrDecodeLimitExceeded) {
+		t.Fatalf("got %v, want %v", err, filter.ErrDecodeLimitExceeded)
+	}
+}
+
+// TestASCIIHexDecodeLengthTooLongReturnsError verifies ASCII hex length errors.
+func TestASCIIHexDecodeLengthTooLongReturnsError(t *testing.T) {
+	f, err := filter.NewFilter(filter.ASCIIHex, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f.DecodeLength(strings.NewReader("00>"), 2)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("got %v, want %v", err, io.ErrUnexpectedEOF)
+	}
+}
+
+// TestASCIIHexDecodeLimitExceeded verifies ASCII hex decode limits are enforced.
+func TestASCIIHexDecodeLimitExceeded(t *testing.T) {
+	f, err := filter.NewFilter(filter.ASCIIHex, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f.Decode(strings.NewReader("0000>"))
+	if !errors.Is(err, filter.ErrDecodeLimitExceeded) {
+		t.Fatalf("got %v, want %v", err, filter.ErrDecodeLimitExceeded)
 	}
 }

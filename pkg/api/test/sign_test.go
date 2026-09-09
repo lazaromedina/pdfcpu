@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The pdf Authors.
+Copyright 2025 The pdfcpu Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ func logResults(ss []string) {
 	}
 }
 
+// TestValidateSignature_X509_RSA_SHA1 exercises validation-only compatibility
+// for legacy adbe.x509.rsa_sha1 signatures.
 func TestValidateSignature_X509_RSA_SHA1(t *testing.T) {
 	msg := "ValidateSignature_X509_RSA_SHA1"
 
@@ -38,9 +40,8 @@ func TestValidateSignature_X509_RSA_SHA1(t *testing.T) {
 
 	for _, fn := range AllPDFs(t, dir) {
 		inFile := filepath.Join(dir, fn)
-		fmt.Println("\nvalidate signatures of " + inFile)
-		all := true
-		full := false
+		fmt.Println("\nvalidate signatures in " + inFile)
+		all, full := true, true
 		ss, err := api.ValidateSignaturesFile(inFile, all, full, conf)
 		if err != nil {
 			t.Fatalf("%s: %v\n", msg, err)
@@ -49,6 +50,8 @@ func TestValidateSignature_X509_RSA_SHA1(t *testing.T) {
 	}
 }
 
+// TestValidateSignature_PKCS7_SHA1 exercises validation-only compatibility
+// for legacy adbe.pkcs7.sha1 signatures.
 func TestValidateSignature_PKCS7_SHA1(t *testing.T) {
 	msg := "ValidateSignature_PKCS7_SHA1"
 
@@ -57,9 +60,8 @@ func TestValidateSignature_PKCS7_SHA1(t *testing.T) {
 
 	for _, fn := range AllPDFs(t, dir) {
 		inFile := filepath.Join(dir, fn)
-		fmt.Println("validate signatures of " + inFile)
-		all := true
-		full := false
+		fmt.Println("validate signatures in " + inFile)
+		all, full := true, true
 		ss, err := api.ValidateSignaturesFile(inFile, all, full, conf)
 		if err != nil {
 			t.Fatalf("%s: %v\n", msg, err)
@@ -68,6 +70,8 @@ func TestValidateSignature_PKCS7_SHA1(t *testing.T) {
 	}
 }
 
+// TestValidateSignature_PKCS7_Detached exercises validation of
+// adbe.pkcs7.detached signatures.
 func TestValidateSignature_PKCS7_Detached(t *testing.T) {
 	msg := "ValidateSignature_PKCS7_Detached"
 
@@ -76,9 +80,8 @@ func TestValidateSignature_PKCS7_Detached(t *testing.T) {
 
 	for _, fn := range AllPDFs(t, dir) {
 		inFile := filepath.Join(dir, fn)
-		fmt.Println("\nvalidate signatures of " + inFile)
-		all := true
-		full := true
+		fmt.Println("\nvalidate signatures in " + inFile)
+		all, full := false, true
 		ss, err := api.ValidateSignaturesFile(inFile, all, full, conf)
 		if err != nil {
 			t.Fatalf("%s: %v\n", msg, err)
@@ -87,6 +90,8 @@ func TestValidateSignature_PKCS7_Detached(t *testing.T) {
 	}
 }
 
+// TestValidateSignature_ETSI_CAdES_Detached exercises supported
+// ETSI.CAdES.detached signature validation.
 func TestValidateSignature_ETSI_CAdES_Detached(t *testing.T) {
 	msg := "ValidateSignature_ETSI_CAdES_Detached"
 
@@ -95,13 +100,27 @@ func TestValidateSignature_ETSI_CAdES_Detached(t *testing.T) {
 
 	for _, fn := range AllPDFs(t, dir) {
 		inFile := filepath.Join(dir, fn)
-		fmt.Println("\nvalidate signatures of " + inFile)
-		all := true
-		full := true
+		fmt.Println("\nvalidate signatures in " + inFile)
+		all, full := true, true
 		ss, err := api.ValidateSignaturesFile(inFile, all, full, conf)
 		if err != nil {
 			t.Fatalf("%s: %v\n", msg, err)
 		}
 		logResults(ss)
+	}
+}
+
+// TestRemoveSignatures verifies signatures can be removed from a signed PDF.
+func TestRemoveSignatures(t *testing.T) {
+	msg := "TestRemoveSignatures"
+
+	inDir := filepath.Join(samplesDir, "signatures", "ETSI.CAdES.detached")
+	inFile := filepath.Join(inDir, "testPAdES_BB.pdf")
+	outFile := filepath.Join(outDir, "testPAdES_BB_noSigs.pdf")
+
+	//conf := model.NewDefaultConfiguration()
+	//conf.RemoveEncryption = true
+	if err := api.RemoveSignaturesFile(inFile, outFile, nil); err != nil {
+		t.Fatalf("%s: %v\n", msg, err)
 	}
 }

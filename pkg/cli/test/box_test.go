@@ -24,13 +24,14 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
 
+// TestListBoxesCommand verifies list boxes command.
 func TestListBoxesCommand(t *testing.T) {
 	msg := "TestListBoxesCommand"
 	inFile := filepath.Join(inDir, "5116.DCT_Filter.pdf")
 
 	// List all page boundaries for all pages.
 	cmd := cli.ListBoxesCommand(inFile, nil, nil, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 
@@ -40,11 +41,12 @@ func TestListBoxesCommand(t *testing.T) {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 	cmd.PageBoundaries = pb
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 }
 
+// TestCropCommand verifies crop command.
 func TestCropCommand(t *testing.T) {
 	msg := "TestCropCommand"
 	inFile := filepath.Join(inDir, "test.pdf")
@@ -71,13 +73,14 @@ func TestCropCommand(t *testing.T) {
 		}
 
 		cmd := cli.CropCommand(inFile, outFile, nil, box, conf)
-		if _, err := cli.Process(cmd); err != nil {
+		if _, err := cli.Dispatch(cmd); err != nil {
 			t.Fatalf("%s: %v\n", msg, err)
 		}
 
 	}
 }
 
+// TestAddBoxesCommand verifies add boxes command.
 func TestAddBoxesCommand(t *testing.T) {
 	msg := "TestAddBoxesCommand"
 	inFile := filepath.Join(inDir, "test.pdf")
@@ -101,12 +104,13 @@ func TestAddBoxesCommand(t *testing.T) {
 		}
 
 		cmd := cli.AddBoxesCommand(inFile, outFile, nil, pb, conf)
-		if _, err := cli.Process(cmd); err != nil {
+		if _, err := cli.Dispatch(cmd); err != nil {
 			t.Fatalf("%s: %v\n", msg, err)
 		}
 	}
 }
 
+// TestAddRemoveBoxesCommand verifies add remove boxes command.
 func TestAddRemoveBoxesCommand(t *testing.T) {
 	msg := "TestAddRemoveBoxesCommand"
 	inFile := filepath.Join(inDir, "test.pdf")
@@ -117,7 +121,7 @@ func TestAddRemoveBoxesCommand(t *testing.T) {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 	cmd := cli.AddBoxesCommand(inFile, outFile, nil, pb, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 
@@ -126,7 +130,7 @@ func TestAddRemoveBoxesCommand(t *testing.T) {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 	cmd = cli.RemoveBoxesCommand(inFile, outFile, nil, pb, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 }
