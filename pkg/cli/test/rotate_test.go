@@ -23,7 +23,7 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/cli"
 )
 
-// Rotate first 2 pages clockwise by 90 degrees.
+// TestRotateCommand first 2 pages clockwise by 90 degrees.
 func TestRotateCommand(t *testing.T) {
 	msg := "TestRotateCommand"
 	inFile := filepath.Join(inDir, "Acroforms2.pdf")
@@ -31,7 +31,7 @@ func TestRotateCommand(t *testing.T) {
 	rotation := 90
 
 	cmd := cli.RotateCommand(inFile, outFile, rotation, []string{"-2"}, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 

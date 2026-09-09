@@ -24,17 +24,19 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/cli"
 )
 
+// TestListBookmarks verifies list bookmarks.
 func TestListBookmarks(t *testing.T) {
 	msg := "TestListBookmarks"
 	inDir := filepath.Join("..", "..", "samples", "bookmarks")
 	inFile := filepath.Join(inDir, "bookmarkTree.pdf")
 
 	cmd := cli.ListBookmarksCommand(inFile, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 }
 
+// TestExportBookmarks verifies export bookmarks.
 func TestExportBookmarks(t *testing.T) {
 	msg := "TestExportBookmarks"
 	inDir := filepath.Join("..", "..", "samples", "bookmarks")
@@ -42,21 +44,27 @@ func TestExportBookmarks(t *testing.T) {
 	outFile := filepath.Join(outDir, "bookmarkTree.json")
 
 	cmd := cli.ExportBookmarksCommand(inFile, outFile, nil)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 }
 
+// TestImportBookmarks verifies import bookmarks.
 func TestImportBookmarks(t *testing.T) {
 	msg := "TestImportBookmarks"
 	inDir := filepath.Join("..", "..", "samples", "bookmarks")
 	inFile := filepath.Join(inDir, "bookmarkTree.pdf")
-	inFileJSON := filepath.Join(inDir, "bookmarkTree.json")
+	inFileJSON := filepath.Join(outDir, "bookmarkTree.json")
 	outFile := filepath.Join(outDir, "bookmarkTreeImported.pdf")
+
+	exportCmd := cli.ExportBookmarksCommand(inFile, inFileJSON, nil)
+	if _, err := cli.Dispatch(exportCmd); err != nil {
+		t.Fatalf("%s export bookmarks: %v\n", msg, err)
+	}
 
 	replace := true
 	cmd := cli.ImportBookmarksCommand(inFile, inFileJSON, outFile, replace, nil)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 
@@ -69,6 +77,7 @@ func TestImportBookmarks(t *testing.T) {
 	}
 }
 
+// TestRemoveBookmarks verifies remove bookmarks.
 func TestRemoveBookmarks(t *testing.T) {
 	msg := "TestRemoveBookmarks"
 	inDir := filepath.Join("..", "..", "samples", "bookmarks")
@@ -76,7 +85,7 @@ func TestRemoveBookmarks(t *testing.T) {
 	outFile := filepath.Join(outDir, "bookmarkTreeNoBookmarks.pdf")
 
 	cmd := cli.RemoveBookmarksCommand(inFile, outFile, nil)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s: %v\n", msg, err)
 	}
 

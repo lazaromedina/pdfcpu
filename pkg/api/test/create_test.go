@@ -172,6 +172,7 @@ func createAndValidate(t *testing.T, xRefTable *model.XRefTable, outFile, msg st
 	}
 }
 
+// TestCreateDemoPDF verifies create demo PDF.
 func TestCreateDemoPDF(t *testing.T) {
 	msg := "TestCreateDemoPDF"
 	mediaBox := types.RectForFormat("A4")
@@ -191,6 +192,7 @@ func TestCreateDemoPDF(t *testing.T) {
 	createAndValidate(t, xRefTable, "Test.pdf", msg)
 }
 
+// TestResourceDictInheritanceDemoPDF verifies resource dict inheritance demo PDF.
 func TestResourceDictInheritanceDemoPDF(t *testing.T) {
 	// Create a test page proofing resource inheritance.
 	// Resources may be inherited from ANY parent node.
@@ -203,6 +205,7 @@ func TestResourceDictInheritanceDemoPDF(t *testing.T) {
 	createAndValidate(t, xRefTable, "ResourceDictInheritanceDemo.pdf", msg)
 }
 
+// TestAnnotationDemoPDF verifies annotation demo PDF.
 func TestAnnotationDemoPDF(t *testing.T) {
 	msg := "TestAnnotationDemoPDF"
 	xRefTable, err := pdfcpu.CreateAnnotationDemoXRef()
@@ -1430,7 +1433,10 @@ func writeTextBorderTest(xRefTable *model.XRefTable, p model.Page, region *types
 	td.BackgroundCol = color.SimpleColor{R: .6, G: .98, B: .77}
 	td.BorderStyle = types.LJMiter
 	td.Dy = 100
-	bb := model.WriteColumnAnchored(xRefTable, p.Buf, mediaBox, region, td, types.Center, w)
+	bb, err := model.WriteColumnAnchored(xRefTable, p.Buf, mediaBox, region, td, types.Center, w)
+	if err != nil {
+		panic(err)
+	}
 
 	// with background, no margin, with border, without border background
 	td.Text = sampleText2
@@ -1718,6 +1724,7 @@ func testTextDemoPDF(t *testing.T, msg, fileName string, w, h int, hAlign types.
 	createXRefAndWritePDF(t, msg, "TextDemo"+fileName+"WidthAndMargin", mediaBox, f4)
 }
 
+// TestTextDemoPDF verifies text demo PDF.
 func TestTextDemoPDF(t *testing.T) {
 	msg := "TestTextDemoPDF"
 	w, h := 600, 600
@@ -1736,6 +1743,7 @@ func TestTextDemoPDF(t *testing.T) {
 	}
 }
 
+// TestColumnDemoPDF verifies column demo PDF.
 func TestColumnDemoPDF(t *testing.T) {
 	msg := "TestColumnDemoPDF"
 
@@ -1912,6 +1920,7 @@ func createXRefAndWriteJustifiedPDF(t *testing.T, msg, fileName string, mediaBox
 	createAndValidate(t, xRefTable, outFile, msg)
 }
 
+// TestUserFontJustified verifies user font justified.
 func TestUserFontJustified(t *testing.T) {
 	msg := "TestUserFontJustified"
 	mediaBox := types.RectForDim(600, 600)
@@ -1945,6 +1954,7 @@ func createXRefAndWriteRTLPDF(t *testing.T,
 	createAndValidate(t, xRefTable, outFile, msg)
 }
 
+// TestUserFontRTL verifies user font rtl.
 func TestUserFontRTL(t *testing.T) {
 	msg := "TestUserFontRTL"
 	f := createTestRTLUserFont
@@ -2046,6 +2056,7 @@ Bây giờ với sự hỗ trợ cho các phông chữ CJKV!`
 	return p
 }
 
+// TestCJKV verifies CJKV.
 func TestCJKV(t *testing.T) {
 	msg := "TestCJKV"
 	mediaBox := types.RectForDim(600, 600)

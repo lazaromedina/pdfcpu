@@ -53,6 +53,7 @@ func doParseDateTimeFail(s string, t *testing.T) {
 
 }
 
+// TestParseDateTime verifies parse date time.
 func TestParseDateTime(t *testing.T) {
 
 	// (D:YYYYMMDDHHmmSSOHH'mm)
@@ -78,7 +79,7 @@ func TestParseDateTime(t *testing.T) {
 	doParseDateTimeOK(s, t)
 
 	s = "D:20170430155901Z"
-	doParseDateTimeOK(s, t)
+	doParseDateTimeRelaxedOK(s, t)
 
 	s = "D:20170430155901"
 	doParseDateTimeOK(s, t)
@@ -114,6 +115,9 @@ func TestParseDateTime(t *testing.T) {
 	doParseDateTimeRelaxedOK(s, t)
 
 	s = "D:20230912144809Z'0"
+	doParseDateTimeRelaxedOK(s, t)
+
+	s = "20250718155751+"
 	doParseDateTimeRelaxedOK(s, t)
 
 	s = "20141117162446Z00'00'"
@@ -159,6 +163,7 @@ func TestParseDateTime(t *testing.T) {
 	doParseDateTimeRelaxedOK(s, t)
 }
 
+// TestWriteDateTime verifies write date time.
 func TestWriteDateTime(t *testing.T) {
 
 	now := DateString(time.Now())

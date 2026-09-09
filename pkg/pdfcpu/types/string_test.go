@@ -18,9 +18,11 @@ package types
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
+// TestByteForOctalString verifies byte for octal string.
 func TestByteForOctalString(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -50,6 +52,26 @@ func TestByteForOctalString(t *testing.T) {
 			"377",
 			0xff,
 		},
+		{
+			"400",
+			0x00,
+		},
+		{
+			"777",
+			0xff,
+		},
+		{
+			"",
+			0x00,
+		},
+		{
+			"8",
+			0x00,
+		},
+		{
+			"1000",
+			0x00,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
@@ -61,6 +83,14 @@ func TestByteForOctalString(t *testing.T) {
 	}
 }
 
+func TestEscapedUTF16StringRejectsInvalidUTF8(t *testing.T) {
+	_, err := EscapedUTF16String(string([]byte{0xFF}))
+	if !errors.Is(err, ErrInvalidUTF8) {
+		t.Fatalf("expected %v, got %v", ErrInvalidUTF8, err)
+	}
+}
+
+// TestUnescapeStringWithOctal verifies unescape string with octal.
 func TestUnescapeStringWithOctal(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -94,6 +124,14 @@ func TestUnescapeStringWithOctal(t *testing.T) {
 			"\\0053",
 			[]byte{0x05, '3'},
 		},
+		{
+			"\\400",
+			[]byte{0x00},
+		},
+		{
+			"\\777",
+			[]byte{0xff},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
@@ -108,6 +146,59 @@ func TestUnescapeStringWithOctal(t *testing.T) {
 	}
 }
 
+// TestStringLiteralToStringPDFDocEncoding verifies PDFDocEncoding fallback for non-UTF16 string literals.
+func TestStringLiteralToStringPDFDocEncoding(t *testing.T) {
+	tests := []struct {
+		name string
+		in   StringLiteral
+		want string
+	}{
+		{
+			name: "ASCII",
+			in:   StringLiteral("625,50"),
+			want: "625,50",
+		},
+		{
+			name: "Euro",
+			in:   StringLiteral("625,50 \xa0"),
+			want: "625,50 \u20ac",
+		},
+		{
+			name: "UTF8",
+			in:   StringLiteral("caf\u00e9"),
+			want: "caf\u00e9",
+		},
+		{
+			name: "UTF16BE",
+			in:   StringLiteral(EncodeUTF16String("625,50 \u20ac")),
+			want: "625,50 \u20ac",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := StringLiteralToString(tt.in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Fatalf("got %q; want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestHexLiteralToStringPDFDocEncoding verifies PDFDocEncoding fallback for non-UTF16 hex literals.
+func TestHexLiteralToStringPDFDocEncoding(t *testing.T) {
+	got, err := HexLiteralToString(HexLiteral("3632352c353020a0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "625,50 \u20ac" {
+		t.Fatalf("got %q; want %q", got, "625,50 \u20ac")
+	}
+}
+
+// TestDecodeName verifies decode name.
 func TestDecodeName(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -175,6 +266,7 @@ func TestDecodeName(t *testing.T) {
 	}
 }
 
+// TestEncodeName verifies encode name.
 func TestEncodeName(t *testing.T) {
 	testcases := []struct {
 		Input    string

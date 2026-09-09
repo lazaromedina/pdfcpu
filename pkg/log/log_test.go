@@ -16,8 +16,13 @@ limitations under the License.
 
 package log
 
-import "testing"
+import (
+	stdlog "log"
+	"strings"
+	"testing"
+)
 
+// TestLog verifies log.
 func TestLog(t *testing.T) {
 
 	Debug.Printf("Test%s\n", "log")
@@ -29,4 +34,16 @@ func TestLog(t *testing.T) {
 	Debug.Printf("Testlog\n")
 	Debug.Println("Testlog")
 	DisableLoggers()
+}
+
+func TestPrintDoesNotAppendNewline(t *testing.T) {
+	var b strings.Builder
+	SetCLILogger(stdlog.New(&b, "", 0))
+	defer SetCLILogger(nil)
+
+	CLI.Print(".")
+
+	if got := b.String(); got != "." {
+		t.Fatalf("got %q, want %q", got, ".")
+	}
 }

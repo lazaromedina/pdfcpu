@@ -18,9 +18,11 @@ package pdfcpu
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
+	"image/png"
 	"io"
 	"os"
 	"path/filepath"
@@ -30,14 +32,13 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/filter"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
-	"github.com/pkg/errors"
 )
 
 var inDir, outDir string
 var xRefTable *model.XRefTable
 
+// TestMain verifies main.
 func TestMain(m *testing.M) {
-
 	inDir = filepath.Join("..", "testdata", "resources")
 
 	var err error
@@ -57,8 +58,236 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func streamDictForJPGFile(xRefTable *model.XRefTable, fileName string) (*types.StreamDict, error) {
+func TestRenderImagePreservesJBIG2Stream(t *testing.T) {
+	content := []byte{0x97, 0x4a, 0x42, 0x32}
+	sd := &types.StreamDict{
+		Dict:           types.NewDict(),
+		Content:        content,
+		FilterPipeline: []types.PDFFilter{{Name: filter.JBIG2}},
+	}
 
+	r, ext, err := RenderImage(nil, sd, false, "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ext != "jbig2" {
+		t.Fatalf("got extension %q, want jbig2", ext)
+	}
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(buf.Bytes(), content) {
+		t.Fatalf("got %x, want %x", buf.Bytes(), content)
+	}
+}
+
+func TestColorSpaceStringRejectsMalformedArray(t *testing.T) {
+	ctx := &model.Context{XRefTable: xRefTable}
+	tests := []struct {
+		name string
+		cs   types.Array
+		want string
+	}{
+		{
+			name: "empty array",
+			want: "empty array",
+		},
+		{
+			name: "first entry is not a name",
+			cs:   types.Array{types.Integer(1)},
+			want: "expected name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sd := &types.StreamDict{Dict: types.Dict{"ColorSpace": tt.cs}}
+			_, err := ColorSpaceString(ctx, sd)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected %q, got %q", tt.want, err.Error())
+			}
+		})
+	}
+}
+
+func TestColorSpaceComponentsRejectsMalformedArray(t *testing.T) {
+	tests := []struct {
+		name string
+		cs   types.Array
+		want string
+	}{
+		{
+			name: "empty array",
+			want: "empty array",
+		},
+		{
+			name: "first entry is not a name",
+			cs:   types.Array{types.Integer(1)},
+			want: "expected name",
+		},
+		{
+			name: "DeviceN missing colorants",
+			cs:   types.Array{types.Name(model.DeviceNCS)},
+			want: "missing array entry 1",
+		},
+		{
+			name: "DeviceN colorants not array",
+			cs:   types.Array{types.Name(model.DeviceNCS), types.Name("Cyan")},
+			want: "DeviceN colorants",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sd := &types.StreamDict{Dict: types.Dict{"ColorSpace": tt.cs}}
+			_, err := ColorSpaceComponents(xRefTable, sd)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected %q, got %q", tt.want, err.Error())
+			}
+		})
+	}
+}
+
+func TestCreateImageStreamDictPreservesIndexedPNG(t *testing.T) {
+	palette := color.Palette{
+		color.RGBA{R: 0x00, G: 0x00, B: 0x00, A: 0xFF},
+		color.RGBA{R: 0x80, G: 0x20, B: 0x40, A: 0xFF},
+		color.RGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF},
+	}
+	img := image.NewPaletted(image.Rect(0, 0, 3, 2), palette)
+	img.Pix = []uint8{0, 1, 2, 2, 1, 0}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+
+	sd, w, h, err := model.CreateImageStreamDict(xRefTable, bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w != 3 || h != 2 {
+		t.Fatalf("got dimensions %dx%d, want 3x2", w, h)
+	}
+	if !bytes.Equal(sd.Content, img.Pix) {
+		t.Fatalf("got image bytes %x, want %x", sd.Content, img.Pix)
+	}
+
+	assertIndexedColorSpace(t, sd, 2, []byte{0x00, 0x00, 0x00, 0x80, 0x20, 0x40, 0xFF, 0xFF, 0xFF})
+}
+
+func TestCreateImageStreamDictPreservesGrayIndexedPNG(t *testing.T) {
+	palette := color.Palette{
+		color.Gray{Y: 0x00},
+		color.Gray{Y: 0x80},
+		color.Gray{Y: 0xFF},
+	}
+	img := image.NewPaletted(image.Rect(0, 0, 3, 2), palette)
+	img.Pix = []uint8{0, 1, 2, 2, 1, 0}
+
+	sd := streamDictForPalettedPNG(t, img)
+	if !bytes.Equal(sd.Content, img.Pix) {
+		t.Fatalf("got image bytes %x, want %x", sd.Content, img.Pix)
+	}
+
+	assertIndexedColorSpace(t, sd, 2, []byte{0x00, 0x00, 0x00, 0x80, 0x80, 0x80, 0xFF, 0xFF, 0xFF})
+	if o := sd.IndirectRefEntry("SMask"); o != nil {
+		t.Fatalf("unexpected SMask: %s", o)
+	}
+}
+
+func TestCreateImageStreamDictPreservesTransparentIndexedPNG(t *testing.T) {
+	palette := color.Palette{
+		color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0xFF},
+		color.NRGBA{R: 0x40, G: 0x80, B: 0xC0, A: 0x7F},
+		color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0x00},
+	}
+	img := image.NewPaletted(image.Rect(0, 0, 3, 2), palette)
+	img.Pix = []uint8{0, 1, 2, 2, 1, 0}
+
+	sd := streamDictForPalettedPNG(t, img)
+	if !bytes.Equal(sd.Content, img.Pix) {
+		t.Fatalf("got image bytes %x, want %x", sd.Content, img.Pix)
+	}
+
+	assertIndexedColorSpace(t, sd, 2, []byte{0x00, 0x00, 0x00, 0x40, 0x80, 0xC0, 0xFF, 0xFF, 0xFF})
+	assertSoftMask(t, sd, []byte{0xFF, 0x7F, 0x00, 0x00, 0x7F, 0xFF})
+}
+
+func streamDictForPalettedPNG(t *testing.T, img *image.Paletted) *types.StreamDict {
+	t.Helper()
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+
+	sd, w, h, err := model.CreateImageStreamDict(xRefTable, bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := img.Bounds()
+	if w != b.Dx() || h != b.Dy() {
+		t.Fatalf("got dimensions %dx%d, want %dx%d", w, h, b.Dx(), b.Dy())
+	}
+	return sd
+}
+
+func assertIndexedColorSpace(t *testing.T, sd *types.StreamDict, hiVal int, wantLookup []byte) {
+	t.Helper()
+
+	cs, ok := sd.Find("ColorSpace")
+	if !ok {
+		t.Fatal("missing ColorSpace")
+	}
+	a, ok := cs.(types.Array)
+	if !ok {
+		t.Fatalf("ColorSpace is %T, want Indexed array", cs)
+	}
+	if a[0] != types.Name(model.IndexedCS) || a[1] != types.Name(model.DeviceRGBCS) || a[2] != types.Integer(hiVal) {
+		t.Fatalf("unexpected ColorSpace array prefix: %v", a[:3])
+	}
+
+	lookup, ok := a[3].(types.HexLiteral)
+	if !ok {
+		t.Fatalf("lookup is %T, want HexLiteral", a[3])
+	}
+	bb, err := lookup.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(bb, wantLookup) {
+		t.Fatalf("got lookup %x, want %x", bb, wantLookup)
+	}
+}
+
+func assertSoftMask(t *testing.T, sd *types.StreamDict, want []byte) {
+	t.Helper()
+
+	ir := sd.IndirectRefEntry("SMask")
+	if ir == nil {
+		t.Fatal("missing SMask")
+	}
+	sm, _, err := xRefTable.DereferenceStreamDict(*ir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sm.Decode(); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(sm.Content, want) {
+		t.Fatalf("got SMask %x, want %x", sm.Content, want)
+	}
+}
+
+func streamDictForJPGFile(xRefTable *model.XRefTable, fileName string) (*types.StreamDict, error) {
 	bb, err := os.ReadFile(fileName)
 	if err != nil {
 		return nil, err
@@ -83,7 +312,7 @@ func streamDictForJPGFile(xRefTable *model.XRefTable, fileName string) (*types.S
 		cs = model.DeviceCMYKCS
 
 	default:
-		return nil, errors.New("pdfcpu: unexpected color model for JPEG")
+		return nil, errors.New("unexpected color model for JPEG")
 
 	}
 
@@ -112,7 +341,6 @@ func streamDictForImageFile(xRefTable *model.XRefTable, fileName string) (*types
 }
 
 func compare(t *testing.T, fn1, fn2 string) {
-
 	f1, err := os.Open(fn1)
 	if err != nil {
 		t.Errorf("%s: %v", fn1, err)
@@ -144,7 +372,7 @@ func compare(t *testing.T, fn1, fn2 string) {
 		return
 	}
 
-	for i := 0; i < len(bb1); i++ {
+	for i := range bb1 {
 		if bb1[i] != bb2[i] {
 			t.Errorf("%s <-> %s: mismatch at %d, 0x%02x != 0x%02x\n", fn1, fn2, i, bb1[i], bb2[i])
 			return
@@ -163,11 +391,13 @@ func printOptionalSMask(t *testing.T, sd *types.StreamDict) {
 		fmt.Printf("SMask %s: %s\n", o, sm)
 	}
 }
-func TestReadWritePNGAndWEBP(t *testing.T) {
 
+// TestReadWriteImages verifies read write images.
+func TestReadWriteImages(t *testing.T) {
 	for _, filename := range []string{
-		"mountain.png",
+		"mountain.jpg",
 		"mountain.webp",
+		"mountain.png",
 	} {
 
 		// Read a PNG file and create an image object which is a stream dict.
@@ -250,9 +480,8 @@ func read1BPCDeviceGrayFlateStreamDump(fileName string) (*types.StreamDict, erro
 	return sd, sd.Decode()
 }
 
-// Starting out with a DeviceGray color space based image object, write a PNG file then read and write again.
+// TestReadDeviceGrayWritePNG out with a DeviceGray color space based image object, write a PNG file then read and write again.
 func TestReadDeviceGrayWritePNG(t *testing.T) {
-
 	// Create an image for a flate encoded stream dump file.
 	filename := "DeviceGray"
 	path := filepath.Join(inDir, filename+".raw")
@@ -346,9 +575,8 @@ func read8BPCDeviceCMYKFlateStreamDump(fileName string) (*types.StreamDict, erro
 	return sd, sd.Decode()
 }
 
-// Starting out with a CMYK color space based image object, write a TIFF file then read and write again.
+// TestReadCMYKWriteTIFF out with a CMYK color space based image object, write a TIFF file then read and write again.
 func TestReadCMYKWriteTIFF(t *testing.T) {
-
 	filename := "DeviceCMYK"
 	path := filepath.Join(inDir, filename+".raw")
 
@@ -392,8 +620,8 @@ func TestReadCMYKWriteTIFF(t *testing.T) {
 
 }
 
+// TestReadTIFFWritePNG verifies read TIFF write PNG.
 func TestReadTIFFWritePNG(t *testing.T) {
-
 	// TIFF images get read into a Flate encoded image stream like PNGs.
 	// Any Flate encoded image stream gets written as PNG unless it operates in the Device CMYK color space.
 
@@ -443,8 +671,8 @@ func TestReadTIFFWritePNG(t *testing.T) {
 	compare(t, fn1, fn2)
 }
 
+// TestReadWriteJPEG verifies read write JPEG.
 func TestReadWriteJPEG(t *testing.T) {
-
 	fileName := "mountain.jpg"
 
 	// Read a JPEG file and create a stream dict w/o decoding.

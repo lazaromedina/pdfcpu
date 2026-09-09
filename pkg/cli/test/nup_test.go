@@ -44,7 +44,7 @@ func testNUp(t *testing.T, msg string, inFiles []string, outFile string, selecte
 	}
 
 	cmd := cli.NUpCommand(inFiles, outFile, selectedPages, nup, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 
@@ -53,6 +53,7 @@ func testNUp(t *testing.T, msg string, inFiles []string, outFile string, selecte
 	}
 }
 
+// TestNUpCommand verifies n up command.
 func TestNUpCommand(t *testing.T) {
 	for _, tt := range []struct {
 		msg           string

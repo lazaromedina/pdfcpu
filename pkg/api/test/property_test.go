@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The pdf Authors.
+Copyright 2020 The pdfcpu Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,14 +17,26 @@ limitations under the License.
 package test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
+
+func renderProperties(properties map[string]string) []string {
+	ss := make([]string, 0, len(properties))
+	for k, v := range properties {
+		ss = append(ss, fmt.Sprintf("%s = %s", k, v))
+	}
+	sort.Strings(ss)
+	return ss
+}
 
 func listPropertiesFile(t *testing.T, fileName string, conf *model.Configuration) ([]string, error) {
 	t.Helper()
@@ -37,19 +49,11 @@ func listPropertiesFile(t *testing.T, fileName string, conf *model.Configuration
 	}
 	defer f.Close()
 
-	if conf == nil {
-		conf = model.NewDefaultConfiguration()
-	} else {
-		conf.ValidationMode = model.ValidationRelaxed
-	}
-	conf.Cmd = model.LISTPROPERTIES
-
-	ctx, err := api.ReadValidateAndOptimize(f, conf)
+	properties, err := api.Properties(f, conf)
 	if err != nil {
-		t.Fatalf("%s ReadValidateAndOptimize: %v\n", msg, err)
+		t.Fatalf("%s properties: %v\n", msg, err)
 	}
-
-	return pdfcpu.PropertiesList(ctx)
+	return renderProperties(properties), nil
 }
 
 func listProperties(t *testing.T, msg, fileName string, want []string) []string {
@@ -72,6 +76,82 @@ func listProperties(t *testing.T, msg, fileName string, want []string) []string 
 	return got
 }
 
+func catalogHasMetadata(t *testing.T, fileName string) bool {
+	t.Helper()
+
+	f, err := os.Open(fileName)
+	if err != nil {
+		t.Fatalf("open: %v\n", err)
+	}
+	defer f.Close()
+
+	conf := model.NewDefaultConfiguration()
+	conf.ValidationMode = model.ValidationRelaxed
+	ctx, err := api.ReadContext(f, conf)
+	if err != nil {
+		t.Fatalf("read context: %v\n", err)
+	}
+
+	rootDict, err := ctx.Catalog()
+	if err != nil {
+		t.Fatalf("catalog: %v\n", err)
+	}
+
+	_, ok := rootDict["Metadata"]
+	return ok
+}
+
+func corruptCatalogMetadata(t *testing.T, fileName string) {
+	t.Helper()
+
+	ctx, err := api.ReadContextFile(fileName)
+	if err != nil {
+		t.Fatalf("read context: %v\n", err)
+	}
+
+	rootDict, err := ctx.Catalog()
+	if err != nil {
+		t.Fatalf("catalog: %v\n", err)
+	}
+
+	indRef, ok := rootDict["Metadata"].(types.IndirectRef)
+	if !ok {
+		t.Fatalf("catalog metadata: expected indirect reference\n")
+	}
+
+	entry, ok := ctx.FindTableEntryForIndRef(&indRef)
+	if !ok {
+		t.Fatalf("catalog metadata: missing xref entry\n")
+	}
+
+	sd, ok := entry.Object.(types.StreamDict)
+	if !ok {
+		t.Fatalf("catalog metadata: expected stream dict\n")
+	}
+	if err = sd.Decode(); err != nil {
+		t.Fatalf("decode metadata: %v\n", err)
+	}
+
+	sd.Content = []byte("<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'></rdf:RDF>")
+	if err = sd.Encode(); err != nil {
+		t.Fatalf("encode metadata: %v\n", err)
+	}
+	entry.Object = sd
+
+	if err = api.WriteContextFile(ctx, fileName); err != nil {
+		t.Fatalf("write context: %v\n", err)
+	}
+}
+
+func validateStrict(t *testing.T, fileName string) error {
+	t.Helper()
+
+	conf := model.NewDefaultConfiguration()
+	conf.ValidationMode = model.ValidationStrict
+	return api.ValidateFile(fileName, conf)
+}
+
+// TestProperties verifies properties.
 func TestProperties(t *testing.T) {
 	msg := "TestProperties"
 
@@ -102,4 +182,36 @@ func TestProperties(t *testing.T) {
 
 	// # of properties must be 0
 	listProperties(t, msg, fileName, nil)
+}
+
+// TestRemoveAllPropertiesRemovesCatalogMetadata verifies removal of catalog XMP metadata.
+func TestRemoveAllPropertiesRemovesCatalogMetadata(t *testing.T) {
+	msg := "TestRemoveAllPropertiesRemovesCatalogMetadata"
+
+	fileName := filepath.Join(outDir, "TheGoProgrammingLanguageCh1.pdf")
+	if err := copyFile(t, filepath.Join(inDir, "TheGoProgrammingLanguageCh1.pdf"), fileName); err != nil {
+		t.Fatalf("%s: copyFile: %v\n", msg, err)
+	}
+
+	if !catalogHasMetadata(t, fileName) {
+		t.Fatalf("%s: expected catalog metadata\n", msg)
+	}
+
+	properties := map[string]string{"issue": "1317"}
+	if err := api.AddPropertiesFile(fileName, "", properties, nil); err != nil {
+		t.Fatalf("%s add properties: %v\n", msg, err)
+	}
+
+	corruptCatalogMetadata(t, fileName)
+	if err := validateStrict(t, fileName); err == nil || !strings.Contains(err.Error(), "xmpmeta") {
+		t.Fatalf("%s: expected strict validation error\n", msg)
+	}
+
+	if err := api.RemovePropertiesFile(fileName, "", nil, nil); err != nil {
+		t.Fatalf("%s remove all properties: %v\n", msg, err)
+	}
+
+	if catalogHasMetadata(t, fileName) {
+		t.Fatalf("%s: expected catalog metadata removed\n", msg)
+	}
 }

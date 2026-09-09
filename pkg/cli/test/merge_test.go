@@ -18,12 +18,13 @@ package test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/pdfcpu/pdfcpu/pkg/cli"
 )
 
-// Merge all PDFs in testdir into out/test.pdf.
+// TestMergeCreateCommand all PDFs in testdir into out/test.pdf.
 func TestMergeCreateCommand(t *testing.T) {
 	msg := "TestMergeCreateCommand"
 
@@ -35,7 +36,7 @@ func TestMergeCreateCommand(t *testing.T) {
 	outFile := filepath.Join(outDir, "test.pdf")
 
 	cmd := cli.MergeCreateCommand(inFiles, outFile, true, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 
@@ -44,6 +45,7 @@ func TestMergeCreateCommand(t *testing.T) {
 	}
 }
 
+// TestMergeCreateZippedCommand verifies merge create zipped command.
 func TestMergeCreateZippedCommand(t *testing.T) {
 	msg := "TestMergeCreateZippedCommand"
 
@@ -56,7 +58,7 @@ func TestMergeCreateZippedCommand(t *testing.T) {
 	outFile := filepath.Join(outDir, "out.pdf")
 
 	cmd := cli.MergeCreateZipCommand(inFiles, outFile, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 
@@ -65,6 +67,20 @@ func TestMergeCreateZippedCommand(t *testing.T) {
 	}
 }
 
+// TestMergeCreateWithStdinIncludesSourceContext verifies raw merge input errors.
+func TestMergeCreateWithStdinIncludesSourceContext(t *testing.T) {
+	outFile := filepath.Join(outDir, "missing-stdin-merge.pdf")
+	missingFile := filepath.Join(outDir, "missing.pdf")
+
+	cmd := cli.MergeCreateCommand([]string{missingFile, "-"}, outFile, false, conf)
+	if _, err := cli.Dispatch(cmd); err == nil {
+		t.Fatal("expected error")
+	} else if want := "merge source 0: read source"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("expected %q in error, got %q", want, err.Error())
+	}
+}
+
+// TestMergeAppendCommand verifies merge append command.
 func TestMergeAppendCommand(t *testing.T) {
 	msg := "TestMergeAppendCommand"
 
@@ -85,7 +101,7 @@ func TestMergeAppendCommand(t *testing.T) {
 	// Merge inFiles by concatenation in the order specified and write the result to outFile.
 	// If outFile already exists its content will be preserved and serves as the beginning of the merge result.
 	cmd := cli.MergeAppendCommand(inFiles, outFile, false, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 

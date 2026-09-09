@@ -97,7 +97,7 @@ func migrateAnnots(o types.Object, pageIndRef types.IndirectRef, ctxSrc, ctxDest
 
 	arr, ok := o.(types.Array)
 	if !ok {
-		return nil, fmt.Errorf("pdfcpu: expected Annots array, got %T", o)
+		return nil, fmt.Errorf("annotations: wrong type %T", o)
 	}
 
 	for i, v := range arr {
@@ -115,9 +115,15 @@ func migrateAnnots(o types.Object, pageIndRef types.IndirectRef, ctxSrc, ctxDest
 				return nil, err
 			}
 			arr[i] = o
-			d = o1.(types.Dict)
+			d, ok = o1.(types.Dict)
+			if !ok {
+				return nil, fmt.Errorf("annotation obj#%d: wrong type %T", objNr, o1)
+			}
 		} else {
-			d = v.(types.Dict)
+			d, ok = v.(types.Dict)
+			if !ok {
+				return nil, fmt.Errorf("annotation entry %d: wrong type %T", i, v)
+			}
 		}
 		for k, v := range d {
 			if k == "P" {
@@ -148,6 +154,16 @@ func migrateAnnots(o types.Object, pageIndRef types.IndirectRef, ctxSrc, ctxDest
 }
 
 func migratePageDict(d types.Dict, pageIndRef types.IndirectRef, ctxSrc, ctxDest *model.Context, migrated map[int]int) error {
+	if err := requireContextWithXRefTable(ctxSrc); err != nil {
+		return fmt.Errorf("source context: %w", err)
+	}
+	if err := requireContextWithXRefTable(ctxDest); err != nil {
+		return fmt.Errorf("destination context: %w", err)
+	}
+	if migrated == nil {
+		return fmt.Errorf("missing migration map")
+	}
+
 	var err error
 	for k, v := range d {
 		if k == "Parent" {
@@ -164,21 +180,21 @@ func migratePageDict(d types.Dict, pageIndRef types.IndirectRef, ctxSrc, ctxDest
 				}
 				v, err = migrateIndRef(&o, ctxSrc, ctxDest, migrated)
 				if err != nil {
-					return err
+					return fmt.Errorf("page dict entry %s: migrate annotation reference: %w", k, err)
 				}
 				d[k] = o
 				if _, err = migrateAnnots(v, pageIndRef, ctxSrc, ctxDest, migrated); err != nil {
-					return err
+					return fmt.Errorf("page dict entry %s: migrate annotations: %w", k, err)
 				}
 				continue
 			}
 			if d[k], err = migrateAnnots(v, pageIndRef, ctxSrc, ctxDest, migrated); err != nil {
-				return err
+				return fmt.Errorf("page dict entry %s: migrate annotations: %w", k, err)
 			}
 			continue
 		}
 		if d[k], err = migrateObject(v, ctxSrc, ctxDest, migrated); err != nil {
-			return err
+			return fmt.Errorf("page dict entry %s: migrate object: %w", k, err)
 		}
 	}
 	return nil

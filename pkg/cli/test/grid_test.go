@@ -43,8 +43,8 @@ func testGrid(t *testing.T, msg string, inFiles []string, outFile string, select
 		}
 	}
 
-	cmd := cli.NUpCommand(inFiles, outFile, selectedPages, nup, conf)
-	if _, err := cli.Process(cmd); err != nil {
+	cmd := cli.GridCommand(inFiles, outFile, selectedPages, nup, conf)
+	if _, err := cli.Dispatch(cmd); err != nil {
 		t.Fatalf("%s %s: %v\n", msg, outFile, err)
 	}
 
@@ -53,6 +53,7 @@ func testGrid(t *testing.T, msg string, inFiles []string, outFile string, select
 	}
 }
 
+// TestGridCommand verifies grid command.
 func TestGridCommand(t *testing.T) {
 	for _, tt := range []struct {
 		msg           string

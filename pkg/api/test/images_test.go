@@ -34,6 +34,7 @@ func testUpdateImages(t *testing.T, msg string, inFile, imgFile, outFile string,
 	}
 }
 
+// TestUpdateImages verifies update images.
 func TestUpdateImages(t *testing.T) {
 
 	outDir := filepath.Join(samplesDir, "images")
@@ -119,6 +120,20 @@ func TestUpdateImages(t *testing.T) {
 			8,
 			0,
 			""},
+		{"TestUpdateByObjNrPNGGray",
+			"test.pdf",
+			"any_gray.png",
+			"imageUpdatedByObjNrPNGGray.pdf",
+			8,
+			0,
+			""},
+		{"TestUpdateByPageNrAndIdGray",
+			"test.pdf",
+			"any_gray.png",
+			"imageUpdatedByPageNrAndIdAnyGray.pdf",
+			0,
+			1,
+			"Im1"},
 	} {
 		testUpdateImages(t, tt.msg,
 			filepath.Join(inDir, tt.inFile),
